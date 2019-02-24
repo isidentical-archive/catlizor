@@ -78,8 +78,8 @@ from catlizor import catlizor
 ```
 Then create a configuration to our monitoring setup
 ```py
-def fancy_print(*args, **kwargs):
-    print(f"{stat:8} access to {args[1]}")
+def fancy_print(name, *args, **kwargs):
+    print(f"Access to {args[1]}")
 
 options = {
 ```
@@ -110,6 +110,31 @@ Our first watch operation will watch name and age attributes and after every get
     ]
 }
 ```
-The second watch will watch personal_info method and whenever this method called, it print the value.
+The second watch will watch personal_info method and whenever this method called, it print the value. Then create our class
+```py
+@catlizor(**options)
+class Person:
+    def __init__(self, name, age):
+        self.age = age
+        self.name = name
+    
+    def personal_info(self):
+        return f">{self.name} - {self.age}<"
+```
 
+Lets try this out
+```py
+me = Person("batuhan", 15)
+me.name
+me.age
+me.personal_info
+```
 
+Lets check our standard output
+```
+Access to name
+Access to age
+Access to name
+Access to age
+Personal info acquired, >batuhan - 15<
+```

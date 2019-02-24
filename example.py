@@ -1,7 +1,7 @@
 from catlizor import catlizor
 
-def fancy_print(*args, **kwargs):
-    print(f"{stat:8} access to {args[1]}")
+def fancy_print(name, *args, **kwargs):
+    print(f"Access to {args[1]}")
 
 options = {
     'watch': [
@@ -22,3 +22,19 @@ options = {
         }
     ]
 }
+
+
+@catlizor(**options)
+class Person:
+    def __init__(self, name, age):
+        self.age = age
+        self.name = name
+    
+    def personal_info(self):
+        return f">{self.name} - {self.age}<"
+        
+
+me = Person("batuhan", 15)
+me.name
+me.age
+me.personal_info()
