@@ -23,7 +23,7 @@ class AttribWatchHooks:
                 if 'pre_hooks' in hook:
                     self.pre_hooks[attr].extend(hook['pre_hooks'])
                 if 'post_hooks' in hook:
-                    self.post_hooks[attr].extend(hook['pre_hooks'])
+                    self.post_hooks[attr].extend(hook['post_hooks'])
         
     def exc(self, cond, name, *args, **kwargs):
         hooks = getattr(self, f"{cond}_hooks")[args[1]]

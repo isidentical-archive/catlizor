@@ -1,36 +1,39 @@
+import unittest
 from catlizor import catlizor
-from functools import partial
 
+class TestCatlizor(unittest.TestCase):
+    def setUp(self):
+        class MyClass:
+            def __init__(self, name, age=15):
+                self.name = name
+                self.age = age
 
-def fancy_print(cons, name, *args, **kwargs):
-    print(f"{cons:8} access to {name} with {args} and {kwargs}")
-
-
-pre_print = partial(fancy_print, "pre")
-post_print = partial(fancy_print, "post")
-
-options = {
-    "watch": [
-        {
-            "attribs": ["name", "age"],
-            "pre_hooks": [pre_print],
-            "post_hooks": [post_print],
-        },
-        {
-            "attribs": ["__dict__"],
-            "pre_hooks": [lambda *a, **k: print('ALERT')],
-            "might_missing": True
+        self.cls = MyClass
+    def test_watch_attrib(self):
+        total_call = []
+        
+        def hook(name, *a, **k):
+            total_call.append(a[1])
+        
+        options = {
+            "watch": [
+                {
+                    "attribs": ["name", "age"],
+                    "post_hooks": [hook],
+                },
+                {
+                    "attribs": ["__dict__"],
+                    "pre_hooks": [hook],
+                }
+            ]
         }
-    ]
-}
-
-
-@catlizor(**options)
-class MyClass:
-    def __init__(self, name, age=15):
-        self.name = name
-        self.age = age
-
-
-mc = MyClass("batuhan")
-print(mc.name)
+        
+        new_cls = catlizor(self.cls, **options)
+        mc = new_cls("batuhan", 13)
+        mc.__dict__['name']
+        
+        print(total_call)
+        self.assertEqual(total_call, ['name', 'age', '__dict__'])
+        
+if __name__ == '__main__':
+    unittest.main()
