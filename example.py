@@ -1,45 +1,24 @@
 from catlizor import catlizor
-from functools import partial
 
-def fancy_print(st, name, *args, **kwargs):
-    print(f"{st:8} {name} call with {args} and {kwargs}")
-    
+def fancy_print(*args, **kwargs):
+    print(f"{stat:8} access to {args[1]}")
+
 options = {
-    "watch": [
+    'watch': [
         {
-            "attribs": ["name"],
-            "hooks": {
-                "pre": [partial(fancy_print, 'pre')],
-                "post": [partial(fancy_print, 'post')],
-                "value": [partial(fancy_print, 'value')]
+            'attribs': ['name', 'age'],
+            'hooks': {
+                'post': [fancy_print]
             },
-            "exclude": {
-                "pre": ["set", "del"],
-                "post": ["get"],
-                "value": ["set", "del"]
+            'exclude': {
+                'post': ['del', 'set']
             }
         },
         {
-            "funcs": ["task"],
-            "hooks": {
-                "value": [lambda name, *a, **k: print(f"Got value of {name}({', '.join(a[1:])}), {k['value']}")]
-            },
+            'funcs': ['personal_info'],
+            'hooks': {
+                'value': [lambda *a, **k: print(f"Personal info acquired, {k['value']}")]
+            }
         }
     ]
 }
-
-@catlizor(**options)
-class MyClass:
-    def __init__(self, name, age=15):
-        self.name = "batuhan"
-        self.age = age
-    def __repr__(self):
-        return "MyClass instance"
-    def task(self, *args, **kwargs):
-        return (args, kwargs)
-        
-mc = MyClass("batuhan")
-mc.__dict__["birth"] = 2019 - mc.age
-info = f"{mc.name} {mc.age} years old."
-del mc.name
-mc.task(pretty=True)
