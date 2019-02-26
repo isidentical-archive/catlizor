@@ -6,19 +6,19 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from functools import partial, reduce, wraps
 from types import FunctionType
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Union, Callable, Tuple
 
 HOOK_SIGN = "__condition"
 HOOK_SPEC = "hook_spec"
 
 
-def get_hooks(cond, hooks: Sequence[Hooks]):
+def get_hooks(cond, hooks: Tuple[Sequence[Hook], ...]):
     def compare_hook(hook):
         return getattr(HookConditions, cond) in getattr(hook, HOOK_SIGN)
 
     res = sum(getattr(hook, HOOK_SPEC) for hook in filter(compare_hook, hooks))
     if res == 0:
-        res = HookSpec({}, {})
+        res = HookSpec(None, None)
     return res
 
 
@@ -42,8 +42,8 @@ class Result:
 
 @dataclass
 class HookSpec:
-    methods: Sequence[str]
-    callbacks: Sequence[Callable]
+    methods: Optional[Sequence[str]]
+    callbacks: Optional[Sequence[Callable]]
 
     def __post_init__(self):
         for attr in vars(self).keys():
@@ -70,7 +70,7 @@ class HookConditions(Enum):
     ON_CALL = auto()
 
 
-def hook_condition(cls: type, condition: HookCondition):
+def hook_condition(cls: type, condition: HookConditions):
     if not hasattr(cls, HOOK_SIGN):
         setattr(cls, HOOK_SIGN, [condition])
     else:
@@ -99,7 +99,8 @@ class Hook:
         setattr(cls, HOOK_SPEC, HookSpec(methods, callbacks))
 
 class Catlizor:
-    def __init__(self, klass, hook_spec):
+    """A dispatcher class between your hooks and classes."""
+    def __init__(self, klass: type, hook_spec: Dict):
         self.klass = klass
         self.hook_spec = hook_spec
         
