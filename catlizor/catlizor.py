@@ -138,28 +138,3 @@ class Catlizor:
         result = self._last_result
         self._last_result = None
         return result
-    
-class TaskManager:
-    def __init__(self):
-        self.tasks = {}
-        
-    def add_task(self, task: str, *items):
-        self.tasks[task] = items
-        
-    def pop_task(self):
-        return self.tasks.popitem()
-    
-    def get_tasks(self, task: str):
-        return self.tasks[task]
-        
-@Hook.pre
-class PreLoggingHook(Hook):
-    methods = ['add_task']
-    callbacks = [lambda result: print(result.args, result.kwargs)]
-
-@Hook.post
-class PostLoggingHook(Hook):
-    methods = ['pop_task', 'get_tasks']
-    callbacks = [lambda result: print(result.result)]
-
-Catlizor.hook(TaskManager, PreLoggingHook, PostLoggingHook)
