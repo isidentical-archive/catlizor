@@ -4,7 +4,7 @@ from collections.abc import Sequence as SequenceBase
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum, auto
-from functools import partial, wraps
+from functools import partial, wraps, reduce
 from types import FunctionType
 from typing import Optional, Dict, Sequence, Union, Any
 
@@ -14,9 +14,12 @@ HOOK_SPEC = 'hook_spec'
 
 def get_hooks(cond, hooks: Sequence[Hooks]):
     def compare_hook(hook):
-        return getattr(hook, HOOK_SIGN) is getattr(HookConditions, cond)
-
-    return sum(getattr(hook, HOOK_SPEC) for hook in filter(lambda hook: compare_hook, hooks))
+        return getattr(HookConditions, cond) in getattr(hook, HOOK_SIGN)
+    
+    res = sum(getattr(hook, HOOK_SPEC) for hook in filter(compare_hook, hooks))
+    if res == 0:
+        res = HookSpec({}, {})
+    return res
     
 def meth_wrapper(function: FunctionType, catlizor: Catlizor):
     @wraps(function)
@@ -46,7 +49,12 @@ class HookSpec:
     
     def __add__(self, other: HookSpec):
         return self.__class__(**{k: (v | getattr(other, k)) for k, v in vars(self).items()})
-        
+
+    def __radd__(self, other: HookSpec):
+        if not isinstance(other, self.__class__):
+            return self
+        return other.__class__(**{k: (v | getattr(self, k)) for k, v in vars(other).items()})
+                
 class HookConditions(Enum):
     PRE = auto()
     POST = auto()
@@ -82,7 +90,23 @@ class Catlizor:
         
     @classmethod
     def hook(cls, klass: type, *hooks: Sequence[Hook]):
-        pre_hooks, post_hooks, on_call_hooks = get_hooks('pre'), get_hooks('post'), get_hooks('on_call')
+        pre_hooks, post_hooks, on_call_hooks = get_hooks('PRE', hooks), get_hooks('POST', hooks), get_hooks('ON_CALL', hooks)
+        hook_spec = {
+            HookConditions.PRE: [
+                pre_hooks.methods,
+                pre_hooks.callbacks
+            ],
+            HookConditions.POST: [
+                post_hooks.methods,
+                post_hooks.callbacks
+            ],
+            HookConditions.ON_CALL: [
+                on_call_hooks.methods,
+                on_call_hooks.callbacks
+            ]
+        }
+        return cls(klass, hook_spec)
+        
     @contextmanager
     def dispatch(self, function: FunctionType, args, kwargs):
         spec = (method_name, args, kwargs)
