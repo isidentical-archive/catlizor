@@ -1,165 +1,141 @@
-from collections import defaultdict, ChainMap
-from functools import wraps, partial
+from __future__ import annotations
+
+from collections.abc import Sequence as SequenceBase
 from contextlib import contextmanager
+from dataclasses import dataclass
+from enum import Enum, auto
+from functools import partial, wraps
+from types import FunctionType
+from typing import Optional, Dict, Sequence, Union, Any
 
-AFFECTED = "__catlized_fields"
-SIGNATURE = "__catlized"
+DEFAULT_CONDITION = 'PRE'
+HOOK_SIGN = '__condition'
+HOOK_SPEC = 'hook_spec'
 
-WATCH_ATTRIB_METHS = {"__getattribute__", "__setattr__", "__delattr__"}
-WATCH_ATTRIB_ALIAS = {
-    "get": "__getattribute__",
-    "set": "__setattr__",
-    "del": "__delattr__",
-}
+def get_hooks(cond, hooks: Sequence[Hooks]):
+    def compare_hook(hook):
+        return getattr(hook, HOOK_SIGN) is getattr(HookConditions, cond)
 
-
-CUSTOM_CALL = {'__new__', '__class__', '__repr__', *WATCH_ATTRIB_METHS}
-CUSTOM_ATTR = {}
-
-
-def attrib_wrapper(hooker, f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        if "name" in kwargs:
-            kwargs["_name"] = kwargs.pop("name")
-
-        with hooker.catch(f.__name__, *args, **kwargs) as c:
-            val = c(f(*args, **kwargs))
-        return val
+    return sum(getattr(hook, HOOK_SPEC) for hook in filter(lambda hook: compare_hook, hooks))
     
-    return wrapper
+def meth_wrapper(function: FunctionType, catlizor: Catlizor):
+    @wraps(function)
+    def wrapper(*args, **kwargs):
+        with catlizor.dispatch(function, args, kwargs) as catch:
+            res = catch(function(*args, **kwargs))
+        return res
 
+@dataclass
+class Result:
+    name: str
+    args: Sequence[Any]
+    kwargs: Dict[str, Any]
+    condition: HookConditions
+    result: Optional[Any] = None
 
-class AttribWatchHooks:
-    HOOKS = ("pre", "post", "value")
+@dataclass
+class HookSpec:
+    methods: Sequence[str]
+    callbacks: Sequence[Callable]
+    
+    def __post_init__(self):
+        for attr in vars(self).keys():
+            val = getattr(self, attr)
+            if not isinstance(val, set) and isinstance(val, SequenceBase):
+                setattr(self, attr, set(val))
+    
+    def __add__(self, other: HookSpec):
+        return self.__class__(**{k: (v | getattr(other, k)) for k, v in vars(self).items()})
+        
+class HookConditions(Enum):
+    PRE = auto()
+    POST = auto()
+    ON_CALL = auto()
 
-    def __init__(self, watches, cls=None):
-        for hook in self.HOOKS:
-            setattr(self, f"{hook}_hooks", defaultdict(list))
+def hook_condition(cls: type, condition: HookCondition):
+    if not hasattr(cls, HOOK_SIGN):
+        setattr(cls, HOOK_SIGN, [condition])
+    else:
+        getattr(cls, HOOK_SIGN).append(condition)
+        
+    return cls
 
-        self.exclude = defaultdict(list)
+class Hook:
+    pre = partial(hook_condition, condition=HookConditions.PRE)
+    post = partial(hook_condition, condition=HookConditions.POST)
+    on_call = partial(hook_condition, condition=HookConditions.ON_CALL)
 
-        self._last_val = None
-
-
-        if any(filter(lambda watch: Ellipsis in watch["attribs"], watches)):
-            self.fulfil = True
-        else:
-            self.fulfil = False
-                    
-        for watch in watches:            
-            for attr in watch["attribs"]:
-                if self.fulfil:
-                    attr = Ellipsis
-                
-                if "hooks" in watch:
-                    for hook, fns in watch["hooks"].items():
-                        getattr(self, f"{hook}_hooks")[attr].extend(fns)
-                if "exclude" in watch:
-                    for hook, aliases in watch["exclude"].items():
-                        self.exclude[f"{hook}_{attr}"].extend(
-                            map(WATCH_ATTRIB_ALIAS.get, aliases)
-                        )
-                
-                if self.fulfil:
-                    break
-
-    def exc(self, cond, name, args, kwargs):
-        attr = Ellipsis if self.fulfil else args[1]
-        excluded = self.exclude.get(f"{cond}_{attr}")
-        if (not excluded) or (name not in excluded):
-            hooks = getattr(self, f"{cond}_hooks")[attr]
-            for hook in hooks:
-                hook(name, *args, **kwargs)
-
+    def __init_subclass__(cls):
+        methods: Sequence[str] = getattr(cls, 'methods', [])
+        callbacks: Sequence[callable] = getattr(cls, 'callbacks', [])
+        if not hasattr(cls, HOOK_SIGN):
+            setattr(cls, HOOK_SIGN, [getattr(HookConditions, DEFAULT_CONDITION)])
+        
+        setattr(cls, HOOK_SPEC, HookSpec(methods, callbacks))
+        super().__init_subclass__()
+        
+class Catlizor:
+    
+    def __init__(self, klass, hook_spec):
+        self.klass = klass
+        self.hook_spec = hook_spec
+        
+    @classmethod
+    def hook(cls, klass: type, *hooks: Sequence[Hook]):
+        pre_hooks, post_hooks, on_call_hooks = get_hooks('pre'), get_hooks('post'), get_hooks('on_call')
     @contextmanager
-    def catch(self, name, *args, **kwargs):
-        try:
-            self.exc("pre", name, args, kwargs)
-            yield self
-            self.exc("value", name, args, ChainMap(kwargs, {"value": self._last_val}))
-            self._last_val = None
-        finally:
-            self.exc("post", name, args, kwargs)
-
-    def __call__(self, value):
-        self._last_val = value
-        return value
-
-
-class CallWatchHooks(AttribWatchHooks):
-    def __init__(self, watches, cls=None):
-        for hook in self.HOOKS:
-            setattr(self, f"{hook}_hooks", defaultdict(list))
-
-        self.methods = []
-        if any(filter(lambda watch: Ellipsis in watch["funcs"], watches)):
-            self.fulfil = True
-            self.methods.extend(meth for meth in dir(cls) if callable(getattr(cls, meth)) and (meth not in CUSTOM_CALL))
-        else:
-            self.fulfil = False
+    def dispatch(self, function: FunctionType, args, kwargs):
+        spec = (method_name, args, kwargs)
+        tracked_by = self.tracked(method_name)
+        if tracked_by:
+            try:
+                if HookConditions.PRE in tracked_by:
+                    self.exc(Result(*spec, HookConditions.PRE))
+                yield self
+                if HookConditions.ON_CALL in tracked_by:
+                    self.exc(Result(*spec, HookConditions.ON_CALL, self.last_result))
+            finally:
+                if HookConditions.POST in tracked_by:
+                    self.exc(Result(*spec, HookConditions.POST, kwargs))
             
-        for watch in watches:
-            if not self.fulfil:
-                self.methods.extend(watch["funcs"])
+    def exc(self, result: Result):
+        for _, callback in self.hook_spec[result.condition]:
+            callback(result)
             
-            for meth in watch["funcs"]:
-                if "hooks" in watch:
-                    for hook, fns in watch["hooks"].items():
-                        getattr(self, f"{hook}_hooks")[meth].extend(fns)
+    def catch(self, result: Any):
+        self._last_result = result
+        return result
 
-    def __iter__(self):
-        return iter(self.methods)
+    def tracked(self, method_name: str):
+        return [keys for keys, values in self.hook_spec.items() if method_name in values[1]]
+        
+    @property
+    def last_result(self):
+        result = self._last_result
+        self._last_result = None
+        return result
+    
+class TaskManager:
+    def __init__(self):
+        self.tasks = {}
+        
+    def add_task(self, task: str, *items):
+        self.tasks[task] = items
+        
+    def pop_task(self):
+        return self.tasks.popitem()
+    
+    def get_tasks(self, task: str):
+        return self.tasks[task]
+        
+@Hook.pre
+class PreLoggingHook(Hook):
+    methods = ['add_task']
+    callbacks = [lambda result: print(result.args, result.kwargs)]
 
-    def exc(self, cond, name, args, kwargs):
-        hooks = getattr(self, f"{cond}_hooks")
-        hooks = hooks[...] if self.fulfil else hooks[name]
-        for hook in hooks:
-            hook(name, *args, **kwargs)
+@Hook.post
+class PostLoggingHook(Hook):
+    methods = ['pop_task', 'get_tasks']
+    callbacks = [lambda result: print(result.result)]
 
-
-def catlizor(cls=None, *, watch=None, sign=True, reset=False):
-    def wrapper(cls):
-        if watch:
-            affects = set()
-            
-            attr_watchers = tuple(filter(lambda watch: watch.get("attribs"), watch))
-            call_watchers = tuple(filter(lambda watch: watch.get("funcs"), watch))
-            
-            if any(attr_watchers):
-                attr_watch_hooks = AttribWatchHooks(attr_watchers, cls)
-                hooked_attr_wrapper = partial(attrib_wrapper, attr_watch_hooks)
-
-                for meth in WATCH_ATTRIB_METHS:
-                    affects.add(meth)
-                    setattr(cls, meth, hooked_attr_wrapper(getattr(cls, meth)))
-
-            if any(call_watchers):
-                call_watch_hooks = CallWatchHooks(call_watchers, cls)
-                hooked_call_wrapper = partial(attrib_wrapper, call_watch_hooks)
-
-                for meth in call_watch_hooks:
-                    try:
-                        setattr(cls, meth, hooked_call_wrapper(getattr(cls, meth)))
-                        affects.add(meth)
-                    except TypeError:
-                        continue
-        if sign:
-            setattr(cls, SIGNATURE, True)
-            if watch:
-                setattr(cls, AFFECTED, affects)
-            
-        if reset:
-            if (hasattr(cls, SIGNATURE) and hasattr(cls, AFFECTED)):
-                for meth in getattr(cls, AFFECTED):
-                    fn = getattr(cls, meth)
-                    if hasattr(fn, '__wrapped__'):
-                        setattr(cls, meth, getattr(fn, '__wrapped__'))
-                setattr(cls, AFFECTED, {})
-            
-        return cls
-
-    if cls is None:
-        return wrapper
-
-    return wrapper(cls)
+Catlizor.hook(TaskManager, PreLoggingHook, PostLoggingHook)
