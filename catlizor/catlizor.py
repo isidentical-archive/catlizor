@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence as SequenceBase
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from functools import partial, reduce, wraps
 from types import FunctionType
@@ -18,7 +18,7 @@ def get_hooks(cond, hooks: Tuple[Sequence[Hook], ...]):
 
     res = sum(getattr(hook, HOOK_SPEC) for hook in filter(compare_hook, hooks))
     if res == 0:
-        res = HookSpec(None, None)
+        res = HookSpec()
     return res
 
 
@@ -42,8 +42,8 @@ class Result:
 
 @dataclass
 class HookSpec:
-    methods: Optional[Sequence[str]]
-    callbacks: Optional[Sequence[Callable]]
+    methods: Optional[Sequence[str]] = field(default_factory=set)
+    callbacks: Optional[Sequence[Callable]] = field(default_factory=set)
 
     def __post_init__(self):
         for attr in vars(self).keys():
