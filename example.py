@@ -18,7 +18,7 @@ class PreLoggingHook(Hook):
     methods = ['add_task']
     callbacks = [lambda result: print(result.args, result.kwargs)]
 
-@Hook.post
+@Hook.on_call
 class PostLoggingHook(Hook):
     methods = ['pop_task', 'get_tasks']
     callbacks = [lambda result: print(result.result)]
@@ -26,3 +26,5 @@ class PostLoggingHook(Hook):
 tm_catlizor = Catlizor.hook(TaskManager, PreLoggingHook, PostLoggingHook)
 tm = TaskManager()
 tm.add_task("süt al", "markete git", "süt reyonuna ulaş")
+tm.get_tasks("süt al")
+tm.pop_task()

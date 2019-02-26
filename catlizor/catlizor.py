@@ -8,7 +8,6 @@ from functools import partial, reduce, wraps
 from types import FunctionType
 from typing import Any, Dict, Optional, Sequence, Union
 
-DEFAULT_CONDITION = "PRE"
 HOOK_SIGN = "__condition"
 HOOK_SPEC = "hook_spec"
 
@@ -88,9 +87,7 @@ class Hook:
     def __init_subclass__(cls):
         methods: Sequence[str] = getattr(cls, "methods", [])
         callbacks: Sequence[callable] = getattr(cls, "callbacks", [])
-        if not hasattr(cls, HOOK_SIGN):
-            setattr(cls, HOOK_SIGN, [getattr(HookConditions, DEFAULT_CONDITION)])
-
+        
         setattr(cls, HOOK_SPEC, HookSpec(methods, callbacks))
         super().__init_subclass__()
 
