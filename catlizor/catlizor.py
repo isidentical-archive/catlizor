@@ -90,7 +90,13 @@ class Hook:
         
         setattr(cls, HOOK_SPEC, HookSpec(methods, callbacks))
         super().__init_subclass__()
-
+    
+    @classmethod
+    def update_hookspec(cls):
+        methods: Sequence[str] = getattr(cls, "methods", [])
+        callbacks: Sequence[callable] = getattr(cls, "callbacks", [])
+        
+        setattr(cls, HOOK_SPEC, HookSpec(methods, callbacks))
 
 class Catlizor:
     def __init__(self, klass, hook_spec):
@@ -98,8 +104,8 @@ class Catlizor:
         self.hook_spec = hook_spec
         
         catlizor_wrapper = partial(meth_wrapper, catlizor=self)
-        for _, value in hook_spec.items():
-            for meth in value[0]:
+        for spec in hook_spec.values():
+            for meth in spec[0]:
                 try:
                     setattr(self.klass, meth, catlizor_wrapper(getattr(self.klass, meth)))
                 except AttributeError as exc:
