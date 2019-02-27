@@ -28,3 +28,7 @@ tm = TaskManager()
 tm.add_task("süt al", "markete git", "süt reyonuna ulaş")
 tm.get_tasks("süt al")
 tm.pop_task()
+
+tm_catlizor.reset()
+tm = TaskManager()
+tm.add_task("abc", 1, 2, 3)

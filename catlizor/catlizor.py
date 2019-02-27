@@ -8,6 +8,7 @@ from functools import partial, reduce, wraps
 from types import FunctionType
 from typing import Any, Dict, Optional, Sequence, Union, Callable, Tuple
 
+CATLIZOR_SIGN = "__catlized_methods"
 HOOK_SIGN = "__condition"
 HOOK_SPEC = "hook_spec"
 
@@ -28,6 +29,7 @@ def meth_wrapper(function: FunctionType, catlizor: Catlizor):
         with catlizor.dispatch(function, args, kwargs) as catch:
             res = catch(function(*args, **kwargs))
         return res
+
     return wrapper
 
 
@@ -52,16 +54,13 @@ class HookSpec:
                 setattr(self, attr, set(val))
 
     def __add__(self, other: HookSpec):
-        return self.__class__(
-            **{k: (v | getattr(other, k)) for k, v in vars(self).items()}
-        )
+        spec = {k: (v | getattr(other, k)) for k, v in vars(self).items()}
+        return self.__class__(**spec)
 
     def __radd__(self, other: HookSpec):
         if not isinstance(other, self.__class__):
             return self
-        return other.__class__(
-            **{k: (v | getattr(self, k)) for k, v in vars(other).items()}
-        )
+        return self.__class__.__add__(other, self)
 
 
 class HookConditions(Enum):
@@ -87,30 +86,38 @@ class Hook:
     def __init_subclass__(cls):
         methods: Sequence[str] = getattr(cls, "methods", [])
         callbacks: Sequence[callable] = getattr(cls, "callbacks", [])
-        
+
         setattr(cls, HOOK_SPEC, HookSpec(methods, callbacks))
         super().__init_subclass__()
-    
+
     @classmethod
     def update_hookspec(cls):
         methods: Sequence[str] = getattr(cls, "methods", [])
         callbacks: Sequence[callable] = getattr(cls, "callbacks", [])
-        
+
         setattr(cls, HOOK_SPEC, HookSpec(methods, callbacks))
+
 
 class Catlizor:
     """A dispatcher class between your hooks and classes."""
+
     def __init__(self, klass: type, hook_spec: Dict):
         self.klass = klass
         self.hook_spec = hook_spec
-        
+
         catlizor_wrapper = partial(meth_wrapper, catlizor=self)
+        catlized_methods = set()
         for spec in hook_spec.values():
             for meth in spec[0]:
                 try:
-                    setattr(self.klass, meth, catlizor_wrapper(getattr(self.klass, meth)))
+                    func = getattr(self.klass, meth)
+                    catlized_methods.add(func)
+                    setattr(self.klass, meth, catlizor_wrapper(func))
                 except AttributeError as exc:
                     raise Exception(f"Class doesnt have a method named {meth}") from exc
+
+        setattr(self.klass, CATLIZOR_SIGN, catlized_methods)
+
     @classmethod
     def hook(cls, klass: type, *hooks: Sequence[Hook]):
         pre_hooks, post_hooks, on_call_hooks = (
@@ -158,3 +165,7 @@ class Catlizor:
         result = self._last_result
         self._last_result = None
         return result
+
+    def reset(self):
+        for func in getattr(self.klass, CATLIZOR_SIGN):
+            setattr(self.klass, func.__name__, func)
