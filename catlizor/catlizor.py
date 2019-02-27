@@ -13,6 +13,9 @@ HOOK_SIGN = "__condition"
 HOOK_SPEC = "hook_spec"
 
 
+class CallbackStop(Exception):
+    pass
+    
 def get_hooks(cond, hooks: Tuple[Sequence[Hook], ...]):
     def compare_hook(hook):
         return getattr(HookConditions, cond) in getattr(hook, HOOK_SIGN)
@@ -149,8 +152,11 @@ class Catlizor:
 
     def exc(self, result: Result):
         for callback in self.hook_spec[result.condition][1]:
-            callback(result)
-
+            try:
+                callback(result)
+            except CallbackStop:
+                break
+                
     def __call__(self, result: Any):
         self._last_result = result
         return result
