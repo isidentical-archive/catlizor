@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence as SequenceBase
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from functools import partial, reduce, wraps
@@ -113,9 +113,8 @@ class Catlizor:
         for spec in hook_spec.values():
             for meth in spec[0]:
                 try:
-                    func = getattr(self.klass, meth)
-                    catlized_methods.add(func)
-                    setattr(self.klass, meth, catlizor_wrapper(func))
+                    setattr(self.klass, meth, catlizor_wrapper(getattr(self.klass, meth)))
+                    catlized_methods.add(meth)
                 except AttributeError as exc:
                     raise Exception(f"Class doesnt have a method named {meth}") from exc
 
@@ -173,5 +172,6 @@ class Catlizor:
         return result
 
     def reset(self):
-        for func in getattr(self.klass, CATLIZOR_SIGN):
-            setattr(self.klass, func.__name__, func)
+        for meth in getattr(self.klass, CATLIZOR_SIGN):
+            with suppress(AttributeError):
+                setattr(self.klass, meth, getattr(self.klass, meth).__wrapped__)
