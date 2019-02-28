@@ -1,6 +1,8 @@
 # Catlizor (v1)
 Action Hooks
 
+> It modifies your methods, they aren't same after the hooking operation so you should use catalizor_instance.reset() method or you can wait for [v1-extended](https://github.com/BTaskaya/catlizor/tree/v1-extended) branch get merged. It overrites default behavior of python with doing some magical stuff and slowes your code down. I'm eager to complete it and never merge it.
+
 ## Example
 ```py
 from catlizor import Hook, Catlizor
