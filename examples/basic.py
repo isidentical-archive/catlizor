@@ -1,8 +1,3 @@
-# Catlizor (v1)
-Action Hooks
-
-## Example
-```py
 from catlizor import Hook, Catlizor
 
 class TaskManager:
@@ -33,12 +28,7 @@ tm = TaskManager()
 tm.add_task("süt al", "markete git", "süt reyonuna ulaş")
 tm.get_tasks("süt al")
 tm.pop_task()
-```
 
-Result (stdout);
-```
-(<__main__.TaskManager object at 0x7fa851743748>, 'süt al', 'markete git', 'süt reyonuna ulaş') {}
-('markete git', 'süt reyonuna ulaş')
-('süt al', ('markete git', 'süt reyonuna ulaş'))
-```
-```
+tm_catlizor.reset()
+tm = TaskManager()
+tm.add_task("abc", 1, 2, 3)
