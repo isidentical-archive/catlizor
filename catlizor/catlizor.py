@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence as SequenceBase
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
-from enum import Enum, auto
+from enum import IntEnum
 from functools import partial, reduce, wraps
 from types import FunctionType
 from typing import Any, Dict, Optional, Sequence, Union, Callable, Tuple
@@ -66,10 +66,10 @@ class HookSpec:
         return self.__class__.__add__(other, self)
 
 
-class HookConditions(Enum):
-    PRE = auto()
-    POST = auto()
-    ON_CALL = auto()
+class HookConditions(IntEnum):
+    PRE = -1
+    POST = 1
+    ON_CALL = 0 
 
 
 def hook_condition(cls: type, condition: HookConditions):
@@ -104,6 +104,7 @@ class Hook:
 class Catlizor:
     """A dispatcher class between your hooks and classes."""
 
+    FN_MAP = {}
     def __init__(self, klass: type, hook_spec: Dict):
         self.klass = klass
         self.hook_spec = hook_spec
@@ -114,12 +115,10 @@ class Catlizor:
             for meth in spec[0]:
                 try:
                     func = getattr(self.klass, meth)
-                    catlized_methods.add(func)
-                    setattr(self.klass, meth, catlizor_wrapper(func))
+                    # setattr(self.klass, meth, catlizor_wrapper(func))
+                    self.FN_MAP[func] = self
                 except AttributeError as exc:
                     raise Exception(f"Class doesnt have a method named {meth}") from exc
-
-        setattr(self.klass, CATLIZOR_SIGN, catlized_methods)
 
     @classmethod
     def hook(cls, klass: type, *hooks: Sequence[Hook]):
@@ -156,6 +155,18 @@ class Catlizor:
                 callback(result)
             except CallbackStop:
                 break
+    
+    def exc_capi(self, *args, **kwargs):
+        print('catlizor api', args, kwargs)
+        """
+        condition = [member for member, value in HookConditions.__members__ if value == status]
+        if len(condition) != 1:
+            condition = None
+        else:
+            condition = condition[0]
+        result = Result(function, args, kwargs, condition, result)
+        return self.exc(result)
+        """
                 
     def __call__(self, result: Any):
         self._last_result = result
@@ -173,5 +184,6 @@ class Catlizor:
         return result
 
     def reset(self):
-        for func in getattr(self.klass, CATLIZOR_SIGN):
-            setattr(self.klass, func.__name__, func)
+        for meth in getattr(self.klass, CATLIZOR_SIGN):
+            with suppress(AttributeError):
+                setattr(self.klass, meth, getattr(self.klass, meth).__wrapped__)

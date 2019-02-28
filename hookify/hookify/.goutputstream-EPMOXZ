@@ -1,0 +1,50 @@
+extern PyObject* PyObject_GetAttr(PyObject *v, PyObject *name);
+
+PyObject* hooked_PyObject_GetAttr(PyObject *v, PyObject *name)
+{
+	__asm__("nop");
+	PyObject* rv = NULL;
+	PyTypeObject *tp = Py_TYPE(v);
+
+    if (PyUnicode_Check(name)) {
+        name = _PyUnicode_AsDefaultEncodedString(name, NULL);
+        if (name == NULL)
+            return NULL;
+    }
+    else {
+        PyErr_Format(PyExc_TypeError,
+                     "attribute name must be string, not '%.200s'",
+                     Py_TYPE(name)->tp_name);
+        return NULL;
+    }
+	
+	if (tp->tp_getattro != NULL) {
+        fprintf("HEY");
+		rv = (*tp->tp_getattro)(v, name);
+	}
+	else if (tp->tp_getattr != NULL) {
+		frpintf("HOY");
+        rv = (*tp->tp_getattr)(v, PyString_AS_STRING(name));
+	}
+	else {
+		PyErr_Format(PyExc_AttributeError,
+		             "'%.50s' object has no attribute '%.400s'",
+		             tp->tp_name, PyString_AS_STRING(name));
+	}
+
+	return rv;
+}
+
+PyMethodDef builtin_methods[1] = {
+	{"getattr", hooked_builtin_getattr, METH_VARARGS, NULL}
+};
+
+
+static PyMethodDef module_methods[] = {
+	{NULL}
+};
+
+PyMODINIT_FUNC
+inithookify(void) {
+	Py_InitModule3("hookify", module_methods, module_doc);
+}
