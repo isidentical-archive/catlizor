@@ -15,6 +15,7 @@
         .jmp_rax  = {0xff, 0xe0}
     };
 #pragma pack(pop)
+
 #define CATLIZED_SIGN "__catlized"
 #define CAPI_METHOD "exc_capi"
 
@@ -59,8 +60,8 @@ hookify_PyFunction_FastCallKeywords(PyObject *func, PyObject *const *stack,
     PyObject **d;
     Py_ssize_t nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
     Py_ssize_t nd;
-    PyObject instance, catlizor, fn_map, hooks;
-    int pre = 0, on_call = 0, post = 0;
+    PyObject *w, *args, *instance, *catlizor, *tracked, *hooks;
+    int i, n, pre = 0, on_call = 0, post = 0;
     assert(PyFunction_Check(func));
     assert(nargs >= 0);
     assert(kwnames == NULL || PyTuple_CheckExact(kwnames));
@@ -80,7 +81,22 @@ hookify_PyFunction_FastCallKeywords(PyObject *func, PyObject *const *stack,
         nd = 0;
     }
     
-    instance = *stack[-1];
+    if (nargs > co->co_argcount) {
+        n = co->co_argcount;
+    }
+    else {
+        n = nargs;
+    }
+    
+    args = PyList_New(n);
+    for (i = 0; i < n; i++) {
+        w = stack[i];
+        Py_INCREF(w);
+        PyList_SetItem(args, i, w);
+    }
+    
+    instance = PyList_GetItem(args, 0);
+    
     if (PyObject_HasAttrString(instance, CATLIZED_SIGN)){
         catlizor = PyObject_GetAttrString(instance, CATLIZED_SIGN);
         tracked = PyObject_CallMethod(catlizor, "tracked", Py_True);
