@@ -8,7 +8,7 @@ from functools import partial, reduce, wraps
 from types import FunctionType
 from typing import Any, Dict, Optional, Sequence, Union, Callable, Tuple
 
-CATLIZOR_SIGN = "__catlized_methods"
+CATLIZOR_SIGN = "__catlized"
 HOOK_SIGN = "__condition"
 HOOK_SPEC = "hook_spec"
 
@@ -24,17 +24,6 @@ def get_hooks(cond, hooks: Tuple[Sequence[Hook], ...]):
     if res == 0:
         res = HookSpec()
     return res
-
-
-def meth_wrapper(function: FunctionType, catlizor: Catlizor):
-    @wraps(function)
-    def wrapper(*args, **kwargs):
-        with catlizor.dispatch(function, args, kwargs) as catch:
-            res = catch(function(*args, **kwargs))
-        return res
-
-    return wrapper
-
 
 @dataclass
 class Result:
@@ -67,9 +56,9 @@ class HookSpec:
 
 
 class HookConditions(IntEnum):
-    PRE = -1
-    POST = 1
-    ON_CALL = 0 
+    PRE = 0
+    POST = 2
+    ON_CALL = 1 
 
 
 def hook_condition(cls: type, condition: HookConditions):
@@ -104,22 +93,11 @@ class Hook:
 class Catlizor:
     """A dispatcher class between your hooks and classes."""
 
-    FN_MAP = {}
     def __init__(self, klass: type, hook_spec: Dict):
         self.klass = klass
         self.hook_spec = hook_spec
-
-        catlizor_wrapper = partial(meth_wrapper, catlizor=self)
-        catlized_methods = set()
-        for spec in hook_spec.values():
-            for meth in spec[0]:
-                try:
-                    func = getattr(self.klass, meth)
-                    # setattr(self.klass, meth, catlizor_wrapper(func))
-                    self.FN_MAP[func] = self
-                except AttributeError as exc:
-                    raise Exception(f"Class doesnt have a method named {meth}") from exc
-
+        setattr(self.klass, CATLIZOR_SIGN, self)
+        
     @classmethod
     def hook(cls, klass: type, *hooks: Sequence[Hook]):
         pre_hooks, post_hooks, on_call_hooks = (
@@ -172,18 +150,15 @@ class Catlizor:
         self._last_result = result
         return result
 
-    def tracked(self, method_name: str):
-        return [
-            keys for keys, values in self.hook_spec.items() if method_name in values[0]
-        ]
-
+    def tracked(self, method_name: str, as_int: bool = False):
+        result = set(keys for keys, values in self.hook_spec.items() if method_name in values[0])
+        if as_int:
+            result = set(map(int, result))
+            
+        return result
+        
     @property
     def last_result(self):
         result = self._last_result
         self._last_result = None
         return result
-
-    def reset(self):
-        for meth in getattr(self.klass, CATLIZOR_SIGN):
-            with suppress(AttributeError):
-                setattr(self.klass, meth, getattr(self.klass, meth).__wrapped__)

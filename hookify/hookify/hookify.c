@@ -15,6 +15,8 @@
         .jmp_rax  = {0xff, 0xe0}
     };
 #pragma pack(pop)
+#define CATLIZED_SIGN "__catlized"
+#define CAPI_METHOD "exc_capi"
 
 extern PyObject* _PyFunction_FastCallKeywords(PyObject *func, PyObject *const *stack, Py_ssize_t nargs, PyObject *kwnames);
 
@@ -57,8 +59,8 @@ hookify_PyFunction_FastCallKeywords(PyObject *func, PyObject *const *stack,
     PyObject **d;
     Py_ssize_t nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
     Py_ssize_t nd;
-    PyObject *module, *catlizor, *catlizor_fnmap, *catlizor_instance;
-    int catalized = 0;
+    PyObject instance, catlizor, fn_map, hooks;
+    int pre = 0, on_call = 0, post = 0;
     assert(PyFunction_Check(func));
     assert(nargs >= 0);
     assert(kwnames == NULL || PyTuple_CheckExact(kwnames));
@@ -77,24 +79,20 @@ hookify_PyFunction_FastCallKeywords(PyObject *func, PyObject *const *stack,
         d = NULL;
         nd = 0;
     }
-    module = PyImport_AddModule("__main__");
     
-    if (PyObject_HasAttrString(module, "Catlizor")){
-        catlizor = PyObject_GetAttrString(module, "Catlizor");
-        catlizor_fnmap = PyObject_GetAttrString(catlizor, "FN_MAP");
-        if (PyDict_Contains(catlizor_fnmap, func)){
-            catlizor_instance = PyDict_GetItemWithError(catlizor_fnmap, func);
-            catalized = 2;
-        }
-        Py_DECREF(catlizor);
-        Py_DECREF(catlizor_fnmap);
-    }
-    
-    if (catlizor_instance != NULL && catalized == 2){
-        if (PyObject_HasAttrString(catlizor_instance, "exc_capi")){
-            PyObject_CallMethod(catlizor_instance, "exc_capi", "(iO)", -1, func);
+    instance = *stack[-1];
+    if (PyObject_HasAttrString(instance, CATLIZED_SIGN)){
+        catlizor = PyObject_GetAttrString(instance, CATLIZED_SIGN);
+        tracked = PyObject_CallMethod(catlizor, "tracked", Py_True);
+        if (PySet_Size(tracked) > 0){
+            pre = PySet_Contains(tracked, PyLong_FromLong(0));
+            on_call = PySet_Contains(tracked, PyLong_FromLong(1));
+            post = PySet_Contains(tracked, PyLong_FromLong(2));
         }
     }
+    if (pre)
+        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iOO)", 0, func, instance);
+
     PyObject *result = _PyEval_EvalCodeWithName((PyObject*)co, globals, (PyObject *)NULL,
                                     stack, nargs,
                                     nkwargs ? &PyTuple_GET_ITEM(kwnames, 0) : NULL,
@@ -103,16 +101,12 @@ hookify_PyFunction_FastCallKeywords(PyObject *func, PyObject *const *stack,
                                     d, (int)nd, kwdefs,
                                     closure, name, qualname);
 
-    if (catlizor_instance != NULL && catalized == 2){
-        if (PyObject_HasAttrString(catlizor_instance, "exc_capi")){
-            PyObject_CallMethod(catlizor_instance, "exc_capi", "(iOO)", 0, func, result);
-        }
-    }
-    if (catlizor_instance != NULL && catalized == 2){
-        if (PyObject_HasAttrString(catlizor_instance, "exc_capi")){
-            PyObject_CallMethod(catlizor_instance, "exc_capi", "(iO)", 1, func);
-        }
-    }
+    if (on_call)
+        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iOOO)", 1, func, instance, result);
+    
+    if (post)
+        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iOO)", 2, func, instance);
+    
     return result;
 }
 
