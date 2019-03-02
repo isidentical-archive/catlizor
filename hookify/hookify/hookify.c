@@ -60,7 +60,7 @@ hookify_PyFunction_FastCallKeywords(PyObject *func, PyObject *const *stack,
     PyObject **d;
     Py_ssize_t nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
     Py_ssize_t nd;
-    PyObject *w, *args, *instance, *catlizor, *tracked, *hooks;
+    PyObject *w, *args, *instance, *catlizor, *meth_name, *tracked, *hooks;
     int i, n, pre = 0, on_call = 0, post = 0;
     assert(PyFunction_Check(func));
     assert(nargs >= 0);
@@ -96,22 +96,20 @@ hookify_PyFunction_FastCallKeywords(PyObject *func, PyObject *const *stack,
     }
     
     instance = PyList_GetItem(args, 0);
-    /* 
     if (PyObject_HasAttrString(instance, CATLIZED_SIGN)){
-        
         catlizor = PyObject_GetAttrString(instance, CATLIZED_SIGN);
-        tracked = PyObject_CallMethod(catlizor, "tracked", Py_True);
-        if (PySet_Size(tracked) > 0){
+        meth_name = PyObject_GetAttrString(func, "__name__");
+        tracked = PyObject_CallMethod(catlizor, "tracked", "(OO)", meth_name, Py_True);
+        if (PySet_Check(tracked) && PySet_Size(tracked) > 0){
             pre = PySet_Contains(tracked, PyLong_FromLong(0));
             on_call = PySet_Contains(tracked, PyLong_FromLong(1));
             post = PySet_Contains(tracked, PyLong_FromLong(2));
         }
-        
+
     }
-    */
     
     if (pre)
-        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iO)", 0, func);
+        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iOOO)", 0, func, args, Py_None);
 
     PyObject *result = _PyEval_EvalCodeWithName((PyObject*)co, globals, (PyObject *)NULL,
                                     stack, nargs,
@@ -122,10 +120,10 @@ hookify_PyFunction_FastCallKeywords(PyObject *func, PyObject *const *stack,
                                     closure, name, qualname);
 
     if (on_call)
-        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iOO)", 1, func, result);
+        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iOOO)", 1, func, args, result);
     
     if (post)
-        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iO)", 2, func);
+        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iOOO)", 2, func, args, Py_None);
     
     return result;
 }

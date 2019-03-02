@@ -112,21 +112,6 @@ class Catlizor:
         }
         return cls(klass, hook_spec)
 
-    @contextmanager
-    def dispatch(self, function: FunctionType, args, kwargs):
-        spec = (function, args, kwargs)
-        tracked_by = self.tracked(function.__name__)
-        if tracked_by:
-            try:
-                if HookConditions.PRE in tracked_by:
-                    self.exc(Result(*spec, HookConditions.PRE))
-                yield self
-                if HookConditions.ON_CALL in tracked_by:
-                    self.exc(Result(*spec, HookConditions.ON_CALL, self.last_result))
-            finally:
-                if HookConditions.POST in tracked_by:
-                    self.exc(Result(*spec, HookConditions.POST, kwargs))
-
     def exc(self, result: Result):
         for callback in self.hook_spec[result.condition][1]:
             try:
@@ -134,31 +119,20 @@ class Catlizor:
             except CallbackStop:
                 break
     
-    def exc_capi(self, *args, **kwargs):
-        print('catlizor api', args, kwargs)
-        """
-        condition = [member for member, value in HookConditions.__members__ if value == status]
+    def exc_capi(self, condition, function, args, result):
+        condition = [value for member, value in HookConditions.__members__.items() if value == condition]
         if len(condition) != 1:
             condition = None
         else:
             condition = condition[0]
-        result = Result(function, args, kwargs, condition, result)
+        
+        result = Result(function, args, {}, condition, result)
         return self.exc(result)
-        """
                 
-    def __call__(self, result: Any):
-        self._last_result = result
-        return result
-
     def tracked(self, method_name: str, as_int: bool = False):
         result = set(keys for keys, values in self.hook_spec.items() if method_name in values[0])
         if as_int:
             result = set(map(int, result))
-            
-        return result
         
-    @property
-    def last_result(self):
-        result = self._last_result
-        self._last_result = None
+        print(method_name)
         return result
