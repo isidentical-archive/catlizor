@@ -1,5 +1,8 @@
-# Catlizor (v1)
-Action Hooks
+# Catlizor (w/hookify)
+An insane project that changes python's default behavior and implements hooks before, on and after execution of an method.
+## Requirements
+- GNU/Linux & OS X system
+- CPython interpreter (v3.7+)
 
 ## Example
 ```py
@@ -30,6 +33,7 @@ class PostLoggingHook(Hook):
 
 tm_catlizor = Catlizor.hook(TaskManager, PreLoggingHook, PostLoggingHook)
 tm = TaskManager()
+import hookify
 tm.add_task("süt al", "markete git", "süt reyonuna ulaş")
 tm.get_tasks("süt al")
 tm.pop_task()

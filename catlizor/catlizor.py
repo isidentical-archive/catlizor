@@ -134,5 +134,4 @@ class Catlizor:
         if as_int:
             result = set(map(int, result))
         
-        print(method_name)
         return result
