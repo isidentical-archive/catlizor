@@ -96,8 +96,9 @@ hookify_PyFunction_FastCallKeywords(PyObject *func, PyObject *const *stack,
     }
     
     instance = PyList_GetItem(args, 0);
-    
+    /* 
     if (PyObject_HasAttrString(instance, CATLIZED_SIGN)){
+        
         catlizor = PyObject_GetAttrString(instance, CATLIZED_SIGN);
         tracked = PyObject_CallMethod(catlizor, "tracked", Py_True);
         if (PySet_Size(tracked) > 0){
@@ -105,9 +106,12 @@ hookify_PyFunction_FastCallKeywords(PyObject *func, PyObject *const *stack,
             on_call = PySet_Contains(tracked, PyLong_FromLong(1));
             post = PySet_Contains(tracked, PyLong_FromLong(2));
         }
+        
     }
+    */
+    
     if (pre)
-        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iOO)", 0, func, instance);
+        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iO)", 0, func);
 
     PyObject *result = _PyEval_EvalCodeWithName((PyObject*)co, globals, (PyObject *)NULL,
                                     stack, nargs,
@@ -118,10 +122,10 @@ hookify_PyFunction_FastCallKeywords(PyObject *func, PyObject *const *stack,
                                     closure, name, qualname);
 
     if (on_call)
-        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iOOO)", 1, func, instance, result);
+        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iOO)", 1, func, result);
     
     if (post)
-        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iOO)", 2, func, instance);
+        PyObject_CallMethod(catlizor, CAPI_METHOD, "(iO)", 2, func);
     
     return result;
 }
