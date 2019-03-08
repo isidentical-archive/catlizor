@@ -20,9 +20,7 @@ def get_hooks(cond, hooks: Tuple[Sequence[Hook], ...]):
     def compare_hook(hook):
         return getattr(HookConditions, cond) in getattr(hook, HOOK_SIGN)
 
-    res = sum(getattr(hook, HOOK_SPEC) for hook in filter(compare_hook, hooks))
-    if res == 0:
-        res = HookSpec()
+    res = sum(getattr(hook, HOOK_SPEC) for hook in filter(compare_hook, hooks) or HookSpec()
     return res
 
 
