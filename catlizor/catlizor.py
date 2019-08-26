@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from functools import partial, reduce, wraps
 from types import FunctionType
-from typing import Any, Dict, Optional, Sequence, Union, Callable, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 CATLIZOR_SIGN = "__catlized_methods"
 HOOK_SIGN = "__condition"
@@ -15,12 +15,16 @@ HOOK_SPEC = "hook_spec"
 
 class CallbackStop(Exception):
     pass
-    
+
+
 def get_hooks(cond, hooks: Tuple[Sequence[Hook], ...]):
     def compare_hook(hook):
         return getattr(HookConditions, cond) in getattr(hook, HOOK_SIGN)
 
-    res = sum(getattr(hook, HOOK_SPEC) for hook in filter(compare_hook, hooks)) or HookSpec()
+    res = (
+        sum(getattr(hook, HOOK_SPEC) for hook in filter(compare_hook, hooks))
+        or HookSpec()
+    )
     return res
 
 
@@ -111,7 +115,9 @@ class Catlizor:
         for spec in hook_spec.values():
             for meth in spec[0]:
                 try:
-                    setattr(self.klass, meth, catlizor_wrapper(getattr(self.klass, meth)))
+                    setattr(
+                        self.klass, meth, catlizor_wrapper(getattr(self.klass, meth))
+                    )
                     catlized_methods.add(meth)
                 except AttributeError as exc:
                     raise Exception(f"Class doesnt have a method named {meth}") from exc
@@ -153,7 +159,7 @@ class Catlizor:
                 callback(result)
             except CallbackStop:
                 break
-                
+
     def __call__(self, result: Any):
         self._last_result = result
         return result

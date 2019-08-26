@@ -1,1 +1,1 @@
-from catlizor.catlizor import Catlizor, Hook, CallbackStop
+from catlizor.catlizor import CallbackStop, Catlizor, Hook
